@@ -1,0 +1,9 @@
+mvn deploy:deploy-file \
+    -DgroupId=com.helloword \
+    -DartifactId=HelloWorld \
+    -Dversion=1.0.1 \
+    -DgeneratePom=true \
+    -Dpackaging=rpm \
+    -DrepositoryId=1234 \
+    -Durl=http://10.122.0.26:8081/nexus/content/repositories/Sample-rel \
+    -Dfile=/var/lib/jenkins/workspace/Nexustest/target/rpm/HelloWorld/RPMS/noarch/HelloWorld-0.0.1-SNAPSHOT20190129094424.noarch.rpm

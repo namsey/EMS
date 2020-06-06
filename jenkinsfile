@@ -1,0 +1,102 @@
+node {
+def pipeline_status
+def goal
+def mantissummary
+def mantisdesc
+		stage('Clean Up Workspace')
+		{
+			deleteDir();
+
+		}
+		stage('Code Checkout') 
+		{
+			git url: 'git@ptcky3pvm001:/opt/codebases/EmployeeManagementSystem/ems.git'
+
+		}
+
+		try
+			{
+			stage('Build Code')
+			{
+				pipeline_status="Build Code stage"
+				goal="cleaninstall"
+				def mvn_version = 'Maven'
+				withEnv( ["PATH+MAVEN=${tool mvn_version}/bin"] ) 
+				{
+					sh "mvn clean install"
+				}
+			}
+			stage('Unit Testing')
+                        {
+                                pipeline_status="Unit Testing stage"
+                                goal="test"
+
+                                def mvn_version = 'Maven'
+                                withEnv( ["PATH+MAVEN=${tool mvn_version}/bin"] )
+                                {
+                                        sh "mvn test"
+                                }
+
+
+
+                        }
+
+			stage('SonarQube Analysis')
+			{
+				def scannerHome = tool 'SonarQube Scanner 3.2';
+				withSonarQubeEnv('My SonarQube Server') 
+				{
+				sh "${scannerHome}/bin/sonar-scanner"
+				}
+				sleep(120)
+//				timeout(time: 5, unit: 'MINUTES')
+///						{ 
+							// Just in case something goes wrong, pipeline will be killed after a timeout
+							def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv
+							if (qg.status != 'OK') 
+							{
+							   pipeline_status="SonarQube Analysis status ${qg.status}"
+							   goal="scan"
+								error "Pipeline aborted due to quality gate failure: ${qg.status}"
+							}
+//						}
+			}
+			
+			stage('Deploy on JBoss') 
+			{ // for display purposes
+				pipeline_status="Deploy on JBoss stage"
+				goal="wildflydeploy"
+				def mvn_version = 'Maven'
+				withEnv( ["PATH+MAVEN=${tool mvn_version}/bin"] ) 
+				{
+					sh "mvn -X wildfly:deploy" 
+				}
+
+
+
+			}
+			stage('Selenium Test')
+                        { // for display purposes
+                                pipeline_status="Selenium Test Stage"
+                                sh "python --version"
+				dir ("pythonTest") {
+					sh "./invokeTests.sh"
+				}
+                        }
+
+		}
+		catch(exc)
+		{
+			stage ('Trigger Mantis')
+			{
+			pipeline_status=pipeline_status+" - FAILED...!!!!"
+		//	build job: 'EMSMantis', parameters: [string(name: 'failureStage', value: pipeline_status), string(name: 'variable', value: goal)]
+		    
+		    
+            nodejs(nodeJSInstallationName: 'node') {    
+		    sh "node mantis.js ${JOB_NAME} ${BUILD_NUMBER} ${BUILD_URL} ${JOB_URL}"
+		}
+			}
+		}
+	}
+
